@@ -1,8 +1,7 @@
-import cv2
 import glob
-import numpy as np
 import os
-import urllib
+import skimage.io
+import io
 
 API_KEY = 'AIzaSyCW38Y73-X6r2IVg6GHexRgu-X07uIlHGQ'
 IMAGE_SIZE = '640x480'
@@ -10,11 +9,7 @@ IMAGE_FOLDER = '../../data/streetview_images/'
 
 def download_image(location, heading, pitch, fov):
     url = 'https://maps.googleapis.com/maps/api/streetview?key=%s&size=%s&location=%s&heading=%s&pitch=%s&fov=%s' % (API_KEY, IMAGE_SIZE, location, heading, pitch, fov);
-    
-    # Download the image, convert it to a numpy array
-    response = urllib.urlopen(url)
-    image = np.asarray(bytearray(response.read()), dtype='uint8')
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    image = skimage.io.imread(url)
     
     return image
 
@@ -22,7 +17,10 @@ def get_image(location, heading, pitch, fov):
     image = download_image(location, heading, pitch, fov)
     
     # Return image data
-    _, imagedata = cv2.imencode('.jpg', image)
+    imagedata = io.BytesIO()
+    skimage.io.imsave(imagedata, image, plugin='pil', format_str='jpeg')
+    imagedata.seek(0)
+    
     return imagedata
 
 def save_image(location, heading, pitch, fov):
@@ -39,6 +37,6 @@ def save_image(location, heading, pitch, fov):
         image_number += file_number
     
     # Save image
-    cv2.imwrite(IMAGE_FOLDER + '%06d.jpg' % image_number, image)
+    skimage.io.imsave(IMAGE_FOLDER + '%06d.jpg' % image_number, image)
     
     return True

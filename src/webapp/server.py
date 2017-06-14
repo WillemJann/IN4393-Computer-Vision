@@ -1,11 +1,8 @@
-from io import BytesIO
-
 from flask import Flask, request, jsonify
 from flask.helpers import send_file
 
 from exception import WebAppException, MISSING_ARGUMENTS
 import google_streetview
-
 
 # The main application:
 app = Flask(__name__, static_url_path="", static_folder="")
@@ -35,7 +32,7 @@ def get_streetview_image():
     
     imagedata = google_streetview.get_image(location, heading, pitch, fov)
     
-    return send_file(BytesIO(imagedata), 'image/jpeg')
+    return send_file(imagedata, 'image/jpeg')
 
 @app.route('/api/save_streetview_image')
 def save_streetview_image():
