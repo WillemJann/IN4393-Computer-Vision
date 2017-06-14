@@ -4,6 +4,8 @@ from flask.helpers import send_file
 from exception import WebAppException, MISSING_ARGUMENTS
 import google_streetview
 
+from detection.sign_detection import detect_signs
+
 # The main application:
 app = Flask(__name__, static_url_path="", static_folder="")
 
@@ -49,7 +51,22 @@ def save_streetview_image():
     return ''
 
 # API endpoint for road sign detection on Google Streetview
-# TODO
+@app.route('/api/roadsign_detection')
+def roadsign_detection():
+    try:
+        location = request.args['location']
+        heading = request.args['heading']
+        pitch = request.args['pitch']
+        fov = request.args['fov']
+    except:
+        raise WebAppException(error_code=MISSING_ARGUMENTS)
+    
+    image = google_streetview.download_image(location, heading, pitch, fov)
+    
+    result_image, _ = detect_signs(image)
+    
+    return send_file(result_image, 'image/jpeg')
+
 
 # Run application
 if __name__ == "__main__":
