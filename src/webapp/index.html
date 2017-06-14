@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Road Sign Recognition</title>
+		<style>
+			* {
+				box-sizing: border-box;
+				-moz-box-sizing: border-box;
+				-webkit-box-sizing: border-box;
+			}
+			html, body {
+				margin: 0;
+				padding: 0;
+			}
+			.clear {
+				clear: both;
+			}
+			#wrapper {
+				width: 1280px;
+				margin: 0px auto;
+			}
+			#map, #panorama, #result, #text {
+				float: left;
+				width: 640px;
+				height: 480px;
+			}
+			#text {
+				font-family: 'Consolas', 'Courier New', monospace;
+				font-size: 13px;
+				padding: 10px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="wrapper">
+			<div id="map"></div>
+			<div id="panorama"></div>
+
+			<div class="clear"></div>
+
+			<div id="result"><img id="result_image"></div>
+			<div id="text">
+				Location: <span id="current_location"></span><br>
+				POV heading: <span id="current_heading"></span><br>
+				POV pitch: <span id="current_pitch"></span><br>
+				POV zoom: <span id="current_zoom"></span><br>
+			</div>
+		</div>
+		
+		<script type="text/javascript">
+			var map, panorama;
+			
+			// Set initial view			
+			var lat = 51.998938;
+			var lng = 4.372471;
+			var heading = 60;
+			var pitch = 0;
+			var zoom = 1;
+			
+			// Set update interval
+			var update = true;
+			var update_interval = 500;
+			
+			// Initialize map, streetview window and set event listeners
+			function initialize() {
+				map = new google.maps.Map(document.getElementById('map'), {
+					center: {lat: lat, lng: lng},
+					zoom: 14
+				});
+				panorama = new google.maps.StreetViewPanorama(
+						document.getElementById('panorama'), {
+							position: {lat: lat, lng: lng},
+							pov: {heading: heading, pitch: pitch, zoom: zoom},
+						});
+				map.setStreetView(panorama);
+				
+				panorama.addListener('position_changed', function() {
+					lat = panorama.getPosition().lat();
+					lng = panorama.getPosition().lng();
+					update = true;
+				});
+
+				panorama.addListener('pov_changed', function() {
+					heading = panorama.getPov().heading;
+					pitch = panorama.getPov().pitch;
+					zoom = Math.max(0.5849625007211563, Math.min(3.510155704511128, panorama.getPov().zoom)); // UI only allows zoom between 0.58 and 3.51..
+					update = true;
+				});
+				
+				setInterval(update_detection, update_interval);
+			}
+			
+			// Actions to perform when view is changed
+			function update_detection() {
+				if (update) {
+					update = false;
+					console.log('update_detection()');
+					
+					// Calculate field-of-view based on zoom level
+					var fov = Math.atan(Math.pow(2, 1 - zoom)) * 360 / Math.PI;
+					
+					// Update text
+					document.getElementById('current_location').innerHTML = lat +','+ lng;
+					document.getElementById('current_heading').innerHTML = heading;
+					document.getElementById('current_pitch').innerHTML = pitch;
+					document.getElementById('current_zoom').innerHTML = zoom + ' (fov = '+ fov +')';
+					
+					// Update result image
+					var url = '/api/streetview_image'
+						+ '?location='+ lat + ',' + lng
+						+ '&heading='+ heading
+						+ '&pitch='+ pitch
+						+ '&fov='+ fov;
+
+					document.getElementById('result_image').src = url;
+				}
+			}
+		</script>
+		
+		<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCW38Y73-X6r2IVg6GHexRgu-X07uIlHGQ&callback=initialize"></script>
+	</body>
+</html>
