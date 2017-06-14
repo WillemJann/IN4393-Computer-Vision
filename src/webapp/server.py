@@ -4,7 +4,7 @@ from flask.helpers import send_file
 from exception import WebAppException, MISSING_ARGUMENTS
 import google_streetview
 
-from detection.sign_detection import detect_signs
+from sign_detection import detect_signs
 
 # The main application:
 app = Flask(__name__, static_url_path="", static_folder="")
