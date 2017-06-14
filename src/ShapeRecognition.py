@@ -10,6 +10,10 @@ from skimage.io import imread
 from skimage.color import rgb2hsv
 from skimage.morphology import opening
 
+import matplotlib.patches as mpatches
+from skimage.measure import label, regionprops
+from skimage.color import label2rgb
+
 # Load picture and detect edges
 or_image = imread('streetview.jpg')#, as_grey=True)
 image = rgb2hsv(or_image)
@@ -32,11 +36,11 @@ binary_blue = np.logical_and(h_blue, np.logical_and(s_blue, v_blue))
 # paper: https://thesai.org/Downloads/Volume7No1/Paper_93-Traffic_Sign_Detection_and_Recognition.pdf
 # paper: https://www.researchgate.net/publication/296196586_Ayoub_Ellahyani_Mohamed_El_AnsariIlyas_El_Jaafari_Traffic_sign_detection_and_recognition_based_on_random_forests_Applied_Soft_Computing
 # TODO: Discard ROIs based on size and aspect ratio constraints for traffic signs containing white areas
-D = 20
+D = 17
 a_image = or_image.astype(int)
 achromatic = (np.absolute(a_image[:,:,0] - a_image[:,:,1]) + \
               np.absolute(a_image[:,:,1] - a_image[:,:,2]) + \
-              np.absolute(a_image[:,:,2] - a_image[:,:,0]) ) / (2.5*D)
+              np.absolute(a_image[:,:,2] - a_image[:,:,0]) ) / (3*D)
 achromatic = achromatic < 1.0
 
 
@@ -59,13 +63,28 @@ BG_thres = np.logical_and(red_thresholds['BG'][0] <= lccs_BG, lccs_BG <= red_thr
 
 binary = np.logical_and(RG_thres, BG_thres)
 '''
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(ncols=2, nrows=2, figsize=(10, 4), sharey=True,
+                                subplot_kw={'adjustable':'box-forced'})
 
 #edges = canny(binary, sigma=2.3)#, sigma=3, low_threshold=50, high_threshold=150)
 
+# label image regions
+labeled = label(binary)
+image_label_overlay = label2rgb(labeled, image=or_image)
+patches = []
+for region in regionprops(labeled):
+    # take regions with large enough areas
+    bbox = region.bbox
+    width = bbox[2] - bbox[0]
+    height = bbox[3] - bbox[1]
+    if width >= 20 and height >= 20:
+        # draw rectangle around segmented coins
+        minr, minc, maxr, maxc = bbox
+        rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
+                                  fill=False, edgecolor='red', linewidth=2)
+        ax4.add_patch(rect)
+        patches.append(or_image[minr:maxr, minc:maxc, :])
 
-
-fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(ncols=2, nrows=2, figsize=(10, 4), sharey=True,
-                                subplot_kw={'adjustable':'box-forced'})
 
 ax1.set_title('red')
 ax1.imshow(binary_red, cmap=plt.cm.gray)
@@ -73,66 +92,17 @@ ax1.imshow(binary_red, cmap=plt.cm.gray)
 ax2.set_title('blue')
 ax2.imshow(binary_blue, cmap=plt.cm.gray)
 
-ax3.set_title('White areas')
-ax3.imshow(achromatic, cmap=plt.cm.gray)
+ax3.set_title('Combined red and blue')
+ax3.imshow(binary, cmap=plt.cm.gray)
 
-ax4.set_title('Combined red and blue')
-ax4.imshow(binary, cmap=plt.cm.gray)
+ax4.set_title('labels')
+ax4.imshow(image_label_overlay)
 
-plt.show()
-
-'''
-# Detect two radii
-hough_radii = np.arange(20,70)
-hough_res = hough_circle(edges, hough_radii)
-
-# Select the most prominent 5 circles
-accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,
-                                           total_num_peaks=5)
-
-# Draw them
-image = color.gray2rgb(image)
-for center_y, center_x, radius in zip(cy, cx, radii):
-    circy, circx = circle_perimeter(center_y, center_x, radius)
-    image[circy, circx] = (220, 20, 20)
-
-fig, (ax1, ax2) = plt.subplots(ncols=2, nrows=1, figsize=(10, 4), sharey=True,
+fig2, axis = plt.subplots(ncols=len(patches), nrows=1, figsize=(10, 4),
                                 subplot_kw={'adjustable':'box-forced'})
 
-ax1.set_title('Image + circles')
-ax1.imshow(image, cmap=plt.cm.gray)
-
-ax2.set_title('Edges (white)')
-ax2.imshow(edges, cmap=plt.cm.gray)
+axs = axis.ravel()
+for i in range(len(patches)):
+	axs[i].set_title('patch: %d' % i)
+	axs[i].imshow(patches[i])
 plt.show()
-'''
-'''
-import cv2
-import numpy as np
-from matplotlib import pyplot as plt
-
-path = 'streetview.png'
-print("Loading Image: %s" % path)
-# Load an color image in grayscale
-img = cv2.imread(path,0)
-img = cv2.medianBlur(img,3)
-cimg = cv2.cvtColor(img,cv2.COLOR_GRAY2BGR)
-
-
-print("Run HoughCircles function")
-circles = cv2.HoughCircles(img,cv2.HOUGH_GRADIENT,dp=1,minDist=10,
-                            param1=50,param2=40,minRadius=10,maxRadius=50)
-
-print("Draw circles on top of processed image")
-circles = np.uint16(np.around(circles))
-for i in circles[0,:]:
-    # draw the outer circle
-    cv2.circle(cimg,(i[0],i[1]),i[2],(0,255,0),2)
-    # draw the center of the circle
-    cv2.circle(cimg,(i[0],i[1]),2,(0,0,255),3)
-
-print("Show processed image with circles")
-plt.imshow(cimg, cmap='gray', interpolation='bicubic')
-plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
-plt.show()
-'''
