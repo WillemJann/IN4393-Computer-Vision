@@ -8,7 +8,7 @@ from skimage.draw import circle_perimeter
 from skimage.util import img_as_ubyte
 from skimage.io import imread
 from skimage.color import rgb2hsv
-from skimage.morphology import opening
+from skimage.morphology import binary_dilation, square, binary_closing, binary_opening
 
 import matplotlib.patches as mpatches
 from skimage.measure import label, regionprops
@@ -24,6 +24,8 @@ h_red = np.logical_or(image[:,:,0] >= float(240)/360, \
 s_red = image[:,:,1] >= float(40)/360
 v_red = image[:,:,2] >= float(30)/360
 binary_red = np.logical_and(h_red, np.logical_and(s_red, v_red))
+binary_red = binary_opening(binary_red)
+
 
 # Blue filter constraints
 h_blue = np.logical_and(image[:,:,0] > float(210)/360, \
@@ -31,6 +33,8 @@ h_blue = np.logical_and(image[:,:,0] > float(210)/360, \
 s_blue = image[:,:,1] >= float(127.5)/360
 v_blue = image[:,:,2] >= float(20)/360
 binary_blue = np.logical_and(h_blue, np.logical_and(s_blue, v_blue))
+binary_blue = binary_opening(binary_blue)
+
 
 # White / Achromatic pixels
 # paper: https://thesai.org/Downloads/Volume7No1/Paper_93-Traffic_Sign_Detection_and_Recognition.pdf
@@ -45,7 +49,8 @@ achromatic = achromatic < 1.0
 
 
 binary = np.logical_or(binary_blue, binary_red)
-binary = opening(binary)
+binary = binary_closing(binary)
+binary = binary_dilation(binary, square(5))
 
 ''''
 # paper: https://hal.archives-ouvertes.fr/hal-00658086/document
@@ -97,6 +102,7 @@ ax3.imshow(binary, cmap=plt.cm.gray)
 
 ax4.set_title('labels')
 ax4.imshow(image_label_overlay)
+plt.show()
 
 fig2, axis = plt.subplots(ncols=len(patches), nrows=1, figsize=(10, 4),
                                 subplot_kw={'adjustable':'box-forced'})
