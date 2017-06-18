@@ -189,7 +189,7 @@ def find_circles(image, mask=None):
         image[cy, cx] = (0, 0, 255)
 
 
-def test(image):
+def test1(image):
     binary_segmentation = binary_filtering(image)
 
     patches, coords = extract_ROIs(binary_segmentation)
@@ -210,10 +210,14 @@ def test(image):
         patch = image[rows[0]:rows[1], columns[0]:columns[1], :]
 
         # patch = resize(patch, (75,75))
-        # plt.figure()
         bw_image = rgb2gray(patch)
         edges = canny(bw_image, sigma=2.3)
 
+        plt.figure()
+        plt.imshow(patch)
+        plt.figure()
+        plt.imshow(edges, cmap=plt.cm.gray)
+        plt.show()
 
         # Detect two radii
         hough_radii = np.arange(20, 75, 3)
@@ -243,6 +247,196 @@ def test(image):
     #plt.show()
     '''
 
+def test(image):
+    # patch = resize(patch, (75,75))
+    bw_image = rgb2gray(image)
+    #edges = canny(bw_image, sigma=2.3)
+
+    float_image = image.astype(np.float32)
+    float_image[float_image < 0.001] = 0.001 # HACK TO AVOID DIVISION BY ZERO!!
+    r = float_image[:,:,0]/ (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    g = float_image[:, :, 1] / (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    b = float_image[:, :, 2] / (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    float_image[:, :, 0] = r
+    float_image[:, :, 1] = g
+    float_image[:, :, 2] = b
+    float_image[float_image > np.float32(1)] = np.float32(1)
+    image = (float_image * 255).astype(np.uint8)
+
+    hsv = rgb2hsv(image)
+    # Red filter constraints
+    h_red = np.logical_or(hsv[:, :, 0] >= float(240) / 360, \
+                          hsv[:, :, 0] <= float(10) / 360)
+    #s_red = hsv[:, :, 1] >= float(40) / 360
+    s_red = hsv[:, :, 1] >= float(120) / 360
+    v_red = hsv[:, :, 2] >= float(30) / 360
+    binary_red = np.logical_and(h_red, np.logical_and(s_red, v_red))
+    binary_red = binary_opening(binary_red)
+    red_labels = label(binary_red)
+
+    edges = binary_red
+
+    # Detect two radii
+    print edges.shape
+    smallest_dim = np.min(edges.shape)
+    # Perform a Hough Transform
+    # The accuracy corresponds to the bin size of a major axis.
+    # The value is chosen in order to get a single high accumulator.
+    # The threshold eliminates low accumulators
+    result = hough_ellipse(edges, accuracy=20, threshold=250,
+                           min_size=100, max_size=120)
+    result.sort(order='accumulator')
+
+    # Estimated parameters for the ellipse
+    best = list(result[-1])
+    yc, xc, a, b = [int(round(x)) for x in best[1:5]]
+    orientation = best[5]
+
+    # Draw the ellipse on the original image
+    cy, cx = ellipse_perimeter(yc, xc, a, b, orientation)
+    image[cy, cx, :] = (0, 0, 255)
+    plt.figure()
+    plt.imshow(image)
+    plt.show()
+    #if plot:
+    #    plt.figure()
+    #   plt.imshow(image, cmap=plt.cm.gray)
+    #plt.show()
+
+    #plt.figure()
+    #plt.imshow(binary_red, cmap=plt.cm.gray)
+    #lt.show()
+
+'''
+    plt.figure()
+    plt.imshow(image)
+    plt.figure()
+    plt.imshow(edges, cmap=plt.cm.gray)
+    plt.show()
+
+    # Detect two radii
+    hough_radii = np.arange(20, 75, 3)
+    hough_res = hough_circle(edges, hough_radii)
+
+    # Select the most prominent 5 circles
+    accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii, threshold=0.33, normalize=True)
+
+    print(accums)
+    # Draw them
+    # image = color.gray2rgb(bw_image)
+    plot = False
+    for center_y, center_x, radius in zip(cy, cx, radii):
+        if radius:
+            plot = True
+            circy, circx = circle_perimeter(center_y, center_x, radius, shape=bw_image.shape)
+            image[circy, circx, :] = (0, 250, 0)
+
+    if plot:
+        plt.figure()
+        plt.imshow(image, cmap=plt.cm.gray)
+
+
+plt.show()
+'''
+
+
+'''
+Pure Test code:
+
+    float_image = image.astype(np.float32)
+    float_image[float_image < 0.001] = 0.001
+    r = float_image[:,:,0]/ (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    g = float_image[:, :, 1] / (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    b = float_image[:, :, 2] / (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    float_image[:, :, 0] = r
+    float_image[:, :, 1] = g
+    float_image[:, :, 2] = b
+    float_image[float_image > np.float32(1)] = np.float32(1)
+    image = (float_image * 255).astype(np.uint8)
+    plt.figure()
+    bw_image = rgb2gray(image)
+    plt.figure()
+    edges = canny(bw_image, sigma=2.3)
+    plt.imshow(edges, cmap=plt.cm.gray)
+    plt.show()
+'''
+
+def ransac_ellipse(image):
+    from skimage.morphology import convex_hull_object, convex_hull_image, diamond
+
+    float_image = image.astype(np.float32)
+    float_image[float_image < 0.001] = 0.001 # HACK TO AVOID DIVISION BY ZERO!!
+    r = float_image[:,:,0]/ (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    g = float_image[:, :, 1] / (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    b = float_image[:, :, 2] / (float_image[:, :, 0] + float_image[:, :, 0] + float_image[:, :, 0])
+    float_image[:, :, 0] = r
+    float_image[:, :, 1] = g
+    float_image[:, :, 2] = b
+    float_image[float_image > np.float32(1)] = np.float32(1)
+    rgb_image = (float_image * 255).astype(np.uint8)
+
+    g[g < 0.001] = 0.001
+    rg_im = b/g
+    rg_im[rg_im > np.float32(1)] = np.float32(1)
+    rg_im = (rg_im * 255).astype(np.uint8)
+
+    hsv = rgb2hsv(rgb_image)
+    # Red filter constraints
+    h_red = np.logical_or(hsv[:, :, 0] >= float(240) / 360, \
+                          hsv[:, :, 0] <= float(10) / 360)
+    #s_red = hsv[:, :, 1] >= float(40) / 360
+    s_red = hsv[:, :, 1] >= float(120) / 360
+    v_red = hsv[:, :, 2] >= float(30) / 360
+    binary_red = np.logical_and(h_red, np.logical_and(s_red, v_red))
+    binary_red = binary_opening(binary_red)
+    red_labels = label(binary_red)
+
+    f, axarr = plt.subplots(4, figsize=(10, 4), sharex=True,
+                                subplot_kw={'adjustable':'box-forced'})
+
+    c_hull = binary_red
+    if np.sum(binary_red) > 0:
+        c_hull = convex_hull_image(binary_red)
+
+    axarr[0].imshow(image)
+    axarr[0].set_title('Original RGB image')
+    axarr[1].imshow(rgb_image)
+    axarr[1].set_title('Convert to R/(R+B+G), G/(R+G+B), B/(R+G+B)')
+    axarr[2].imshow(binary_red, cmap=plt.cm.gray)
+    axarr[2].set_title('Segmentation on Red value in HSV colorspace')
+    axarr[3].imshow(c_hull, cmap=plt.cm.gray)
+    axarr[3].set_title('Convex Hull of segmented image')
+    plt.show()
+
+    '''
+    edges = canny(binary_red, sigma=0.8)
+    plt.figure()
+    plt.imshow(edges,cmap=plt.cm.gray)
+    plt.show()
+    #edges[edges>0] = 255
+    img = edges.astype(np.uint8)
+    img[img>0] = 255
+
+    print "ransac ellipse"
+    from skimage import measure, feature, io, color, draw
+
+    coords = np.column_stack(np.nonzero(img))
+
+    model, inliers = measure.ransac(coords, measure.EllipseModel,
+                                    min_samples=3, residual_threshold=1,
+                                    max_trials=500)
+
+    print model.params
+
+    rr, cc = draw.ellipse_perimeter( np.int(model.params[0]), np.int(model.params[1]), \
+                                     np.int(model.params[2]), np.int(model.params[3]),orientation=model.params[4], shape=img.shape)
+
+    img[rr, cc] = 250#(0, 250, 0)
+    plt.figure()
+    plt.imshow(img, cmap=plt.cm.gray)
+    plt.show()
+    '''
+
 # Run application
 if __name__ == "__main__":
     from skimage.transform import hough_circle, hough_circle_peaks
@@ -253,9 +447,31 @@ if __name__ == "__main__":
     import glob
 
     image_list = []
-    for filename in glob.glob('../test/*.jpg'):  # assuming gif
+    #path = '../../data/Road Signs selected/BelgiumTSC/A01-50'
+    path = '../../data/streetview_images_15-06-17'
+    for filename in glob.glob(path+'/*.jpg'):  # assuming gif
         image = imread(filename)
+        #plt.figure()
+        #plt.imshow(image)
+
+        binary_segmentation = binary_filtering(image)
+
+        patches, coords = extract_ROIs(binary_segmentation)
+        '''
         plt.figure()
+        image[:,:,0] = mask * image[:,:,0]
+        image[:, :, 1] = mask * image[:, :, 1]
+        image[:, :, 2] = mask * image[:, :, 2]
         plt.imshow(image)
-        plt.show()
-        test(image)
+
+
+        bw_image = rgb2gray(image)
+        edges = canny(bw_image, sigma=2.3)
+        plt.figure()
+        plt.imshow(edges, cmap=plt.cm.gray)
+        '''
+        for rows, columns in coords:
+            patch = image[rows[0]:rows[1], columns[0]:columns[1], :]
+
+            ransac_ellipse(patch)
+        #plt.show()
