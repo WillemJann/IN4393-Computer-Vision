@@ -3,10 +3,12 @@ import numpy as np
 from skimage import color
 from skimage import io
 from skimage.util import view_as_blocks
+from skimage.util.shape import view_as_windows
 import matplotlib.pyplot as plt
 from scipy import ndimage
 
 HOG_CELL_SIZE = (3,3) # Should always fit in image size, we use image size = 75
+HOG_BLOCK_SIZE = (1,1)
 NR_OF_HIST_BINS = 9
 
 def get_image():
@@ -67,10 +69,6 @@ blocks_theta = view_as_blocks(theta, HOG_CELL_SIZE)
 # collapse the last two dimensions in one
 flatten_blocks_g = blocks_g.reshape(blocks_g.shape[0], blocks_g.shape[1], -1)
 flatten_blocks_theta = blocks_theta.reshape(blocks_theta.shape[0], blocks_theta.shape[1], -1)
-print g.shape
-print blocks_g.shape
-print flatten_blocks_g.shape
-print flatten_blocks_theta.shape
 
 # Calculate histogram per block
 shape = (flatten_blocks_g.shape[0], flatten_blocks_g.shape[1], NR_OF_HIST_BINS)
@@ -78,14 +76,32 @@ hist_range = (0,180)
 signed_hist = False
 if signed_hist:
     hist_range = (0,360)
-histograms = np.zeros(shape, dtype=np.uint16)
+else:
+    flatten_blocks_theta = (flatten_blocks_theta + 180.0) % 180 # make sure all the angles are between 0 and 180
+histograms = np.zeros(shape, dtype=np.float32)
 for i in range(shape[0]):
     for j in range(shape[1]):
         angles = flatten_blocks_theta[i,j,:]
         weights = flatten_blocks_g[i,j,:]
-        histogram, bin_edges= np.histogram(angles, bins=shape[2], range=hist_range, weights=weights)
+        # Not sure how to handle boundary conditions. for instance: angles right at an edge, should the weights be split
+        # equally between the bins? I'm not sure how numpy handles this.
+        histogram, bin_edges= np.histogram(angles, bins=shape[2], range=hist_range, weights=weights, density=False)
         histograms[i,j,:] = histogram
-        plt.figure()
-        plt.bar(bin_edges[:-1], histogram, width = 20)
-        plt.xlim(min(bin_edges), max(bin_edges))
-        plt.show()
+
+# Normalize histograms per windows (L1 or L2 norm)
+windows = view_as_windows(histograms, window_shape=(1,1,9), step=(1,1,9))
+normalized_histograms = np.zeros((25,25,9), dtype=np.float32)
+norm = 'L2'
+order = 2
+if norm == 'L1':
+    order = 1
+if norm == 'L2':
+    order = 2
+for i in range(shape[0]):
+    for j in range(shape[1]):
+        #print histograms[i,j,:]
+        normalized_histograms[i,j,:] = np.linalg.norm(windows[i,j,:].flatten(), ord=order)
+
+# Concatenate all histograms to 1 large feature vector
+hog_features = normalized_histograms.flatten()
+print hog_features.shape
