@@ -1,9 +1,12 @@
 import collections
 import glob
+from operator import itemgetter
 import os
 import pickle
 
+from numpy.random.mtrand import normal
 from scipy import ndimage as ndi
+from scipy.spatial.distance import euclidean
 from skimage import color, draw, feature, filters, io, transform, morphology
 from skimage import data
 from skimage import data, color
@@ -15,7 +18,8 @@ from skimage.feature.peak import peak_local_max
 from skimage.filters import rank
 from skimage.io import imread
 from skimage.measure import label, regionprops
-from skimage.morphology import binary_dilation, square, binary_closing, binary_opening
+from skimage.morphology import binary_dilation, binary_erosion, square, binary_closing, binary_opening
+from skimage.morphology import skeletonize
 from skimage.morphology import watershed, disk
 from skimage.morphology.misc import remove_small_objects
 from skimage.transform import hough_circle, hough_circle_peaks, hough_ellipse
@@ -79,24 +83,6 @@ def train_classifier(training_set):
     classifier.fit(training_samples, labels)
     
     return classifier
-
-def detect_circles(image):
-    image_size = max(image.shape[0], image.shape[1])
-    
-    hough_radii = np.arange(10, 30)
-    hough_res = transform.hough_circle(image, hough_radii)
-    
-    accums, cx, cy, radii = transform.hough_circle_peaks(hough_res, hough_radii, total_num_peaks=3)
- 
-    result = color.gray2rgb(image.astype(np.uint8)*255)
-    for center_y, center_x, radius in zip(cy, cx, radii):
-        circy, circx = draw.circle_perimeter(center_y, center_x, radius)
-        try:
-            result[circy, circx] = (220, 20, 20)
-        except IndexError:
-            pass
-    
-    return result
 
 def test(image):
     #image_resized = transform.resize(image, (75, 75), mode='reflect')
@@ -190,7 +176,74 @@ def test(image):
     plt.show()
     '''
 
+def detect_circles(image):    
+    min_image_size = min(image.shape[0], image.shape[1])
+    max_image_size = max(image.shape[0], image.shape[1])
+    
+    min_radius = max(10, int(min_image_size / 4))
+    max_radius = int(max_image_size / 2) 
+    
+    #print 'Find circles with radius: (%d, %d)' % (min_radius, max_radius)
+    
+    hough_radii = np.arange(min_radius, max_radius)
+    hough_res = transform.hough_circle(image, hough_radii)
+    
+    min_distance = int(max_image_size / 3)
+    threshold = 0.55
+    num_peaks = np.inf
+    total_num_peaks = 5
+    normalize = True
+    
+    accums, cx, cy, radii = transform.hough_circle_peaks(hough_res, hough_radii, min_distance, min_distance, threshold, num_peaks, total_num_peaks, normalize)
+    
+    # cluster circles
+    clusters = []
+    cluster_distance = 10
+    
+    for center_y, center_x, radius, intensity in zip(cy, cx, radii, accums):
+        distance = None
+        point = (center_y, center_x, radius, intensity)
+        
+        for cluster in clusters:
+            distance = euclidean(point[:2], cluster[0][:2])
+            
+            if (distance < cluster_distance):
+                cluster.append(point)
+                break
+        
+        if distance == None or distance > cluster_distance:
+            clusters.append([point])
+        
+    # find circles
+    circles = []
+    
+    for cluster in clusters:
+        largest_circle = max(cluster, key=itemgetter(2))
+        circles.append(largest_circle)
+    
+    # generate circle image
+    circle_image = color.gray2rgb(image.astype(np.uint8)*255)
+    for center_y, center_x, radius, intensity in circles:
+        #print '=> circle: (%s, %s), radius: %s, intensity: %s' % (center_y, center_x, radius, intensity)
+        circy, circx = draw.circle_perimeter(center_y, center_x, radius, shape=image.shape)
+        circle_image[circy, circx] = (220, 20, 20)
+    
+    # return only first circle
+    circle_mask = np.ones(image.shape, dtype=bool)
+    
+    if circles:
+        circy, circx = draw.circle(circles[0][0], circles[0][1], circles[0][2], shape=image.shape)
+        circle_mask[circy, circx] = False
+    
+    # Return results
+    return circle_mask, circle_image
+
 def test_new(image):
+    image_size = max(image.shape[0], image.shape[1])
+    filter_size = int(image_size / 15)
+    
+    #print 'Image size: %d' % image_size
+    
     # Convert to HSV
     image_hsv = color.rgb2hsv(image)
     
@@ -205,18 +258,27 @@ def test_new(image):
     # Red filter constraints
     binary_red = np.logical_and(H <= 0.05, S >= 0.3)
     red_segments = remove_small_objects(binary_red, 64)
-    red_segments = binary_closing(red_segments, disk(3))
+    red_segments = binary_closing(red_segments, disk(filter_size))
     red_labels = label(red_segments)
 
     # Blue filter constraints
     binary_blue = np.logical_and(np.logical_and(H >= 0.55, H <= 0.65), S >= 0.4)
     blue_segments = remove_small_objects(binary_blue, 64)
-    blue_segments = binary_closing(blue_segments, disk(3))
+    blue_segments = binary_closing(blue_segments, disk(filter_size))
     blue_labels = label(blue_segments)
     
     # Detect circles
-    red_circles = detect_circles(red_segments)
-    blue_circles = detect_circles(blue_segments)
+    red_skeleton = np.logical_xor(binary_dilation(red_segments), binary_erosion(red_segments))
+    blue_skeleton = np.logical_xor(binary_dilation(blue_segments), binary_erosion(blue_segments))
+    
+    red_circle, red_circles_image = detect_circles(red_skeleton)
+    blue_circle, blue_circles_image = detect_circles(blue_skeleton)
+    
+    # Mask road sign
+    red_sign = image.copy()
+    red_sign[red_circle] = (255, 255, 255)
+    blue_sign = image.copy()
+    blue_sign[blue_circle] = (255, 255, 255)
     
     # Display results
     fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(12, 9), sharex=True, sharey=True, subplot_kw={'adjustable':'box-forced'})
@@ -237,20 +299,26 @@ def test_new(image):
     ax[4].imshow(binary_red, cmap='gray')
     ax[4].set_title("Binary red")
     
-    ax[5].imshow(red_labels, cmap='spectral')
+    ax[5].imshow(red_labels, cmap='nipy_spectral')
     ax[5].set_title("Red labels")
     
-    ax[6].imshow(red_circles)
+    ax[6].imshow(red_circles_image)
     ax[6].set_title("Red circles")
+    
+    ax[7].imshow(red_sign)
+    ax[7].set_title("Red sign")
     
     ax[8].imshow(binary_blue, cmap='gray')
     ax[8].set_title("Binary blue")
     
-    ax[9].imshow(blue_labels, cmap='spectral')
+    ax[9].imshow(blue_labels, cmap='nipy_spectral')
     ax[9].set_title("Blue labels")
     
-    #ax[10].imshow(blue_circles)
-    #ax[10].set_title("Blue circles")
+    ax[10].imshow(blue_circles_image)
+    ax[10].set_title("Blue circles")
+    
+    ax[11].imshow(blue_sign)
+    ax[11].set_title("Blue sign")
     
     fig.tight_layout()
     plt.show()
