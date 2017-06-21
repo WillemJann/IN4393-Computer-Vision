@@ -28,15 +28,15 @@ def detect_signs(image):
     # annotated = visualize_ROIs(ROIs, image)
 
     # Return results
-    # im = image
-    # im[:,:,0] = binary_segmentation * image[:,:,0]
-    # im[:,:,1] = binary_segmentation * image[:,:,1]
-    # im[:,:,2] = binary_segmentation * image[:,:,2]
+    im = image
+    im[:,:,0] = binary_segmentation * image[:,:,0]
+    im[:,:,1] = binary_segmentation * image[:,:,1]
+    im[:,:,2] = binary_segmentation * image[:,:,2]
 
     output = io.BytesIO()
-    visualize_ROIs(ROIs, image, output)
+    #visualize_ROIs(ROIs, image, output)
     #find_circles(image, binary_segmentation)
-    #skimage.io.imsave(output, image, plugin='pil', format_str='jpeg')
+    skimage.io.imsave(output, im, plugin='pil', format_str='jpeg')
     output.seek(0)
 
     recognized_signs = {}
