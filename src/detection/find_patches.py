@@ -74,7 +74,7 @@ def extract_ROIs(binary_image):
         width = bbox[2] - bbox[0]
         height = bbox[3] - bbox[1]
         
-        if width >= 15 and height >= 15:
+        if width >= 20 and height >= 20:
             min_row, min_col, max_row, max_col = bbox
             patches_coords.append( (int(min_row), int(max_row), int(min_col), int(max_col)) )
     
