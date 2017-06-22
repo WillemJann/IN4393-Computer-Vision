@@ -194,25 +194,28 @@ def detect_circles(image):
     total_num_peaks = 5
     normalize = True
     
-    accums, cx, cy, radii = transform.hough_circle_peaks(hough_res, hough_radii, min_distance, min_distance, threshold, num_peaks, total_num_peaks, normalize)
+    _, cx, cy, radii = transform.hough_circle_peaks(hough_res, hough_radii, min_distance, min_distance, threshold, num_peaks, total_num_peaks, normalize)
+    detected_circles = zip(cy, cx, radii)
     
     # cluster circles
     clusters = []
     cluster_distance = 10
     
-    for center_y, center_x, radius, intensity in zip(cy, cx, radii, accums):
+    for circle in detected_circles:
         distance = None
-        point = (center_y, center_x, radius, intensity)
         
+        # Add current circle to an existing cluster if it is nearby this cluster
         for cluster in clusters:
-            distance = euclidean(point[:2], cluster[0][:2])
+            cluster_mean = np.mean(np.array(cluster)[:,:2], axis=0)
+            distance = euclidean(circle[:2], cluster_mean)
             
-            if (distance < cluster_distance):
-                cluster.append(point)
+            if (distance <= cluster_distance):
+                cluster.append(circle)
                 break
         
-        if distance == None or distance > cluster_distance:
-            clusters.append([point])
+        # Create new cluster if circle is not close to an existing cluster
+        if distance is None or distance > cluster_distance:
+            clusters.append([circle])
         
     # find circles
     circles = []
@@ -223,7 +226,7 @@ def detect_circles(image):
     
     # generate circle image
     circle_image = color.gray2rgb(image.astype(np.uint8)*255)
-    for center_y, center_x, radius, intensity in circles:
+    for center_y, center_x, radius in circles:
         #print '=> circle: (%s, %s), radius: %s, intensity: %s' % (center_y, center_x, radius, intensity)
         circy, circx = draw.circle_perimeter(center_y, center_x, radius, shape=image.shape)
         circle_image[circy, circx] = (220, 20, 20)
