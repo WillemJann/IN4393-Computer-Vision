@@ -1,41 +1,28 @@
 import collections
 import glob
-from operator import itemgetter
+import operator
 import os
 import pickle
 
-from numpy.random.mtrand import normal
-from scipy import ndimage as ndi
 from scipy.spatial.distance import euclidean
-from skimage import color, draw, feature, filters, io, transform, morphology
-from skimage import data
-from skimage import data, color
-from skimage.color import rgb2hsv, rgb2gray
-from skimage.draw import circle_perimeter
-from skimage.draw import line
-from skimage.feature._canny import canny
-from skimage.feature.peak import peak_local_max
-from skimage.filters import rank
-from skimage.io import imread
-from skimage.measure import label, regionprops
-from skimage.morphology import binary_dilation, binary_erosion, square, binary_closing, binary_opening
-from skimage.morphology import skeletonize
-from skimage.morphology import watershed, disk
+from skimage import draw, feature, io, transform
+from skimage.color import gray2rgb, rgb2hsv, rgb2gray, rgba2rgb
+from skimage.measure import label
+from skimage.morphology import binary_dilation, binary_erosion, binary_closing
+from skimage.morphology import disk
 from skimage.morphology.misc import remove_small_objects
-from skimage.transform import hough_circle, hough_circle_peaks, hough_ellipse
-from skimage.util import img_as_ubyte
+from skimage.transform import resize
 from sklearn import svm
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 TRAINING_FOLDER = '../../data/circles_normalized/'
 CLASSIFIER_FILE = '../../data/classifiers/svm_circles_normalized.pickle'
 
-HOG_ORIENTATIONS = 8
-HOG_CELL_SIZE = (3,3)
-HOG_BLOCK_SIZE = (1,1)
+HOG_ORIENTATIONS = 9
+HOG_CELL_SIZE = (8,8)
+HOG_BLOCK_SIZE = (3,3)
 HOG_BLOCK_NORM = 'L2-Hys'
 
 # Returns dictonary with all labeled images from the training folder
@@ -57,11 +44,11 @@ def extract_hog_features(training_images):
     
     for label, image in training_images.iteritems():
         # Fill alpha channel with white and convert image to grayscale
-        image = color.rgba2rgb(image, background=(0,0,0))
-        image = color.rgb2gray(image)
+        image = rgba2rgb(image, background=(0,0,0))
+        image = rgb2gray(image)
         
         # Extract HOG features
-        features = feature.hog(image, HOG_ORIENTATIONS, HOG_CELL_SIZE, HOG_BLOCK_SIZE, HOG_BLOCK_NORM)
+        features = feature.hog(image, HOG_ORIENTATIONS, HOG_CELL_SIZE, HOG_BLOCK_SIZE, HOG_BLOCK_NORM, transform_sqrt=True)
         
         # Show results
         #_, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True)
@@ -83,98 +70,6 @@ def train_classifier(training_set):
     classifier.fit(training_samples, labels)
     
     return classifier
-
-def test(image):
-    #image_resized = transform.resize(image, (75, 75), mode='reflect')
-    
-    # Convert to HSV
-    image_hsv = color.rgb2hsv(image)
-    image_hue = image_hsv[:,:,0]
-    image_hue[image_hue > 0.8] = 0
-
-    '''
-    # Apply edge detection
-    edges = canny(image_hue, sigma=2.3)
-    
-    # Display results
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8), sharex=True, sharey=True, subplot_kw={'adjustable':'box-forced'})
-    ax = axes.ravel()
-    
-    ax[0].imshow(image)
-    ax[0].set_title("Hue channel")
-    
-    ax[1].imshow(image_hue, cmap='gray')
-    ax[1].set_title("Hue channel")
-    
-    ax[2].imshow(edges, cmap='gray')
-    ax[2].set_title("Edges")
-    
-    fig.tight_layout()
-    plt.show()
-    '''
-    
-    # Apply morphological watershed
-    denoised = rank.median(image_hue, disk(5))
-    gradient = rank.gradient(denoised, disk(2))
-    markers = gradient < 15
-    markers = ndi.label(markers)[0]
-    labels = watershed(gradient, markers)
-    
-    # display results
-    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(9, 6), sharex=True, sharey=True, subplot_kw={'adjustable':'box-forced'})
-    ax = axes.ravel()
-    
-    ax[0].imshow(image, cmap='gray', interpolation='nearest')
-    ax[0].set_title("Original")
-    
-    ax[1].imshow(image_hue, cmap='gray', interpolation='nearest')
-    ax[1].set_title("Hue channel")
-    
-    ax[2].imshow(denoised, cmap='gray', interpolation='nearest')
-    ax[2].set_title("Denoised")
-    
-    ax[3].imshow(gradient, cmap='spectral', interpolation='nearest')
-    ax[3].set_title("Local Gradient")
-    
-    ax[4].imshow(markers, cmap='spectral', interpolation='nearest')
-    ax[4].set_title("Markers")
-    
-    ax[5].imshow(image, cmap='gray', interpolation='nearest')
-    ax[5].imshow(labels, cmap='spectral', interpolation='nearest', alpha=.7)
-    ax[5].set_title("Segmented")
-    
-    for a in ax:
-        a.axis('off')
-    
-    fig.tight_layout()
-    plt.show()
-    '''
-    # Apply watershed segmentation
-    image_segmented = binary_filtering(image)
-    
-    distance = ndi.distance_transform_edt(image_segmented)
-    local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((3, 3)), labels=image_segmented)
-    markers = ndi.label(local_maxi)[0]
-    labels = watershed(-distance, markers, mask=image_segmented)
-    
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8), sharex=True, sharey=True, subplot_kw={'adjustable':'box-forced'})
-    ax = axes.ravel()
-    
-    ax[0].imshow(image)
-    ax[0].set_title('Original image')
-    ax[1].imshow(image_segmented, cmap='gray', interpolation='nearest')
-    ax[1].set_title('Overlapping objects')
-    ax[2].imshow(-distance, cmap='gray', interpolation='nearest')
-    ax[2].set_title('Distances')
-    ax[3].imshow(labels, cmap='spectral', interpolation='nearest')
-    ax[3].set_title('Separated objects')
-    
-    for a in ax:
-        a.set_axis_off()
-    
-    fig.tight_layout()
-    plt.show()
-    '''
 
 def detect_circles(image):    
     min_image_size = min(image.shape[0], image.shape[1])
@@ -221,34 +116,55 @@ def detect_circles(image):
     circles = []
     
     for cluster in clusters:
-        largest_circle = max(cluster, key=itemgetter(2))
+        largest_circle = max(cluster, key=operator.itemgetter(2))
         circles.append(largest_circle)
     
     # generate circle image
-    circle_image = color.gray2rgb(image.astype(np.uint8)*255)
+    circle_image = gray2rgb(image.astype(np.uint8)*255)
     for center_y, center_x, radius in circles:
         #print '=> circle: (%s, %s), radius: %s, intensity: %s' % (center_y, center_x, radius, intensity)
         circy, circx = draw.circle_perimeter(center_y, center_x, radius, shape=image.shape)
         circle_image[circy, circx] = (220, 20, 20)
     
     # return only first circle
-    circle_mask = np.ones(image.shape, dtype=bool)
+    #center_y, center_x, radius = circles[0]
+    #circle_mask = np.ones((center_y, center_x), dtype=bool)
     
-    if circles:
-        circy, circx = draw.circle(circles[0][0], circles[0][1], circles[0][2], shape=image.shape)
-        circle_mask[circy, circx] = False
+    #if circles:
+    #    circy, circx = draw.circle(circles[0][0], circles[0][1], circles[0][2], shape=image.shape)
+    #    circle_mask[circy, circx] = False
     
     # Return results
-    return circle_mask, circle_image
+    return circle_image, circles
 
-def test_new(image):
+def crop_circle(image, circle):
+    cropped_image = rgb2gray(image)
+
+    center_y, center_x, radius = circle
+    x1 = center_x - radius
+    x2 = center_x + radius
+    y1 = center_y - radius
+    y2 = center_y + radius
+    
+    circy, circx = draw.circle(center_y, center_x, radius, shape=image.shape)
+    mask = np.ones(cropped_image.shape, dtype=bool)
+    mask[circy, circx] = False
+    
+    cropped_image[mask] = 0
+    cropped_image = cropped_image[y1:y2, x1:x2]
+    
+    return cropped_image
+
+def get_hog_features(image):
+    image = resize(image, (75,75))
+    return feature.hog(image, HOG_ORIENTATIONS, HOG_CELL_SIZE, HOG_BLOCK_SIZE, HOG_BLOCK_NORM, visualise=True, transform_sqrt=True)
+
+def test(image, classifier, debug=True):
     image_size = max(image.shape[0], image.shape[1])
     filter_size = int(image_size / 15)
-    
-    #print 'Image size: %d' % image_size
-    
+        
     # Convert to HSV
-    image_hsv = color.rgb2hsv(image)
+    image_hsv = rgb2hsv(image)
     
     # Get HSV channels
     H = image_hsv[:,:,0]
@@ -274,57 +190,84 @@ def test_new(image):
     red_skeleton = np.logical_xor(binary_dilation(red_segments), binary_erosion(red_segments))
     blue_skeleton = np.logical_xor(binary_dilation(blue_segments), binary_erosion(blue_segments))
     
-    red_circle, red_circles_image = detect_circles(red_skeleton)
-    blue_circle, blue_circles_image = detect_circles(blue_skeleton)
+    red_circles_image, red_circles = detect_circles(red_skeleton)
+    blue_circles_image, blue_circles = detect_circles(blue_skeleton)
     
-    # Mask road sign
-    red_sign = image.copy()
-    red_sign[red_circle] = (255, 255, 255)
-    blue_sign = image.copy()
-    blue_sign[blue_circle] = (255, 255, 255)
+    # Crop circles and extract HOG features
+    red_cropped = np.ones(image.shape)
+    red_hog_image = np.ones(image.shape)
+    red_features = None
+    
+    blue_cropped = np.ones(image.shape)
+    blue_hog_image = np.ones(image.shape)
+    blue_features = None
+    
+    if red_circles:
+        red_cropped = crop_circle(image, red_circles[0])
+        red_features, red_hog_image = get_hog_features(red_cropped)
+        
+    if blue_circles:
+        blue_cropped = crop_circle(image, blue_circles[0])
+        blue_features, blue_hog_image = get_hog_features(blue_cropped)
+        
+    # Perform classification
+    if red_features is not None:
+        red_classification = classifier.predict(red_features.reshape(1, -1))
+        print 'Result: %s' % red_classification
+        
+    if blue_features is not None:
+        blue_classification = classifier.predict(blue_features.reshape(1, -1))
+        print 'Result: %s' % blue_classification
     
     # Display results
-    fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(12, 9), sharex=True, sharey=True, subplot_kw={'adjustable':'box-forced'})
-    ax = axes.ravel()
+    if debug:
+        fig, axes = plt.subplots(nrows=3, ncols=5, figsize=(15, 9), sharex=False, sharey=False, subplot_kw={'adjustable':'box-forced'})
+        ax = axes.ravel()
+        
+        ax[0].imshow(image)
+        ax[0].set_title('Original image')
+        
+        ax[1].imshow(H, cmap='gray')
+        ax[1].set_title("H channel")
+        
+        ax[2].imshow(S, cmap='gray')
+        ax[2].set_title("S channel")
+        
+        ax[3].imshow(V, cmap='gray')
+        ax[3].set_title("V channel")
+        
+        ax[5].imshow(binary_red, cmap='gray')
+        ax[5].set_title("Binary red")
+        
+        ax[6].imshow(red_labels, cmap='nipy_spectral')
+        ax[6].set_title("Red labels")
+        
+        ax[7].imshow(red_circles_image)
+        ax[7].set_title("Red circles")
+        
+        ax[8].imshow(red_cropped, cmap='gray')
+        ax[8].set_title("Red sign")
+        
+        ax[9].imshow(red_hog_image, cmap='gray', interpolation='nearest', aspect='auto')
+        ax[9].set_title("Red HOG features")
+        
+        ax[10].imshow(binary_blue, cmap='gray')
+        ax[10].set_title("Binary blue")
+        
+        ax[11].imshow(blue_labels, cmap='nipy_spectral')
+        ax[11].set_title("Blue labels")
+        
+        ax[12].imshow(blue_circles_image)
+        ax[12].set_title("Blue circles")
+        
+        ax[13].imshow(blue_cropped, cmap='gray')
+        ax[13].set_title("Blue sign")
+        
+        ax[14].imshow(blue_hog_image, cmap='gray', interpolation='nearest')
+        ax[14].set_title("Blue HOG features")
     
-    ax[0].imshow(image)
-    ax[0].set_title('Original image')
-    
-    ax[1].imshow(H, cmap='gray')
-    ax[1].set_title("H channel")
-    
-    ax[2].imshow(S, cmap='gray')
-    ax[2].set_title("S channel")
-    
-    ax[3].imshow(V, cmap='gray')
-    ax[3].set_title("V channel")
-    
-    ax[4].imshow(binary_red, cmap='gray')
-    ax[4].set_title("Binary red")
-    
-    ax[5].imshow(red_labels, cmap='nipy_spectral')
-    ax[5].set_title("Red labels")
-    
-    ax[6].imshow(red_circles_image)
-    ax[6].set_title("Red circles")
-    
-    ax[7].imshow(red_sign)
-    ax[7].set_title("Red sign")
-    
-    ax[8].imshow(binary_blue, cmap='gray')
-    ax[8].set_title("Binary blue")
-    
-    ax[9].imshow(blue_labels, cmap='nipy_spectral')
-    ax[9].set_title("Blue labels")
-    
-    ax[10].imshow(blue_circles_image)
-    ax[10].set_title("Blue circles")
-    
-    ax[11].imshow(blue_sign)
-    ax[11].set_title("Blue sign")
-    
-    fig.tight_layout()
-    plt.show()
+        fig.tight_layout()
+        plt.show()
 
 if __name__ == "__main__":
     # Train classifier and save to disk
@@ -333,7 +276,10 @@ if __name__ == "__main__":
     #classifier = train_classifier(training_set)
     #pickle.dump(classifier, open(CLASSIFIER_FILE, 'wb'), pickle.HIGHEST_PROTOCOL)
     
-    # Load images
+    # Load classifier
+    classifier = pickle.load(open(CLASSIFIER_FILE, 'rb'))
+    
+    # Perform tests on images
     for filename in glob.glob('../../data/streetview_images_segmented/positive/*.jpg'):
         image = io.imread(filename)
-        test_new(image)
+        result = test(image, classifier, debug=True)
