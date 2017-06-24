@@ -34,7 +34,6 @@
 				padding: 10px;
 			}
 		</style>
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 	</head>
 	<body>
 		<div id="wrapper">
@@ -117,7 +116,7 @@
 					document.getElementById('current_zoom').innerHTML = zoom + ' (fov = '+ fov +')';
 					
 					// Update result image
-					var url = '/api/get_streetview_image?location='+ lat + ',' + lng + '&heading='+ heading + '&pitch='+ pitch + '&fov='+ fov;
+					var url = '/api/roadsign_detection?location='+ lat + ',' + lng + '&heading='+ heading + '&pitch='+ pitch + '&fov='+ fov;
 					
 					document.getElementById('result_image').src = url;
 				}
