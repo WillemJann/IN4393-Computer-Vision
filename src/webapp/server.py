@@ -1,3 +1,4 @@
+from base64 import b64encode
 from flask import Flask, request, jsonify
 from flask.helpers import send_file
 
@@ -16,7 +17,7 @@ def handle_exception(error):
     response.status_code = error.status_code
     return response
 
-# Main webpage
+# Serve main webpage
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
@@ -63,11 +64,11 @@ def roadsign_detection():
     
     image = google_streetview.download_image(location, heading, pitch, fov)
     
-    result_image, _ = detect_signs(image)
+    output, recognized_signs = detect_signs(image)
     
-    return send_file(result_image, 'image/jpeg')
+    return jsonify(image = b64encode(output.read()), classification = recognized_signs)
 
 
 # Run application
 if __name__ == "__main__":
-    app.run(debug = True)
+    app.run(debug = True, static_files={'/dataset': '../../data/dataset_clean'})

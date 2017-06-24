@@ -63,7 +63,7 @@ def find_circles(binary_patch):
     # Return found circles
     return detected_circles
     
-def apply_clustering(circles, cluster_size = 10):
+def apply_clustering(circles, cluster_size = 20):
     clusters = []
     
     for circle in circles:
@@ -128,6 +128,8 @@ def draw_circles(image, circles, output):
     ax.imshow(image, aspect='normal')
     
     # Add circles to figure
+    i = 1
+    
     for center_y, center_x, radius in circles:
         x = center_x - radius
         y = center_y - radius
@@ -136,6 +138,9 @@ def draw_circles(image, circles, output):
         
         rectangle = mpatches.Rectangle((x, y), width, height, fill=False, edgecolor='red', linewidth=2)
         ax.add_patch(rectangle)
+        ax.text(x - 5, y, i, color='red', horizontalalignment='right', verticalalignment='top')
+        
+        i = i + 1
     
     # Write figure to output bufer
     fig.savefig(output, format='jpeg', dpi=80)

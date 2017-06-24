@@ -13,8 +13,15 @@
 				margin: 0;
 				padding: 0;
 			}
+			h3 {
+				margin: 0 0 1em 0;
+			}
 			p {
 				margin: 0 0 1em 0;
+			}
+			p.text {
+				font-family: 'Consolas', 'Courier New', monospace;
+				font-size: 13px;
 			}
 			.clear {
 				clear: both;
@@ -23,17 +30,29 @@
 				width: 1280px;
 				margin: 0px auto;
 			}
-			#map, #panorama, #result, #text {
+			#map, #panorama, #result_left, #result_right {
 				float: left;
 				width: 640px;
 				height: 480px;
 			}
-			#text {
-				font-family: 'Consolas', 'Courier New', monospace;
-				font-size: 13px;
+			#result_right {
 				padding: 10px;
 			}
+			#result_list {
+			    overflow: hidden;
+			    padding-left: 20px
+			}
+			#result_list li {
+			    float: left;
+			    padding: 0 30px 0 0;
+			}
+			#result_list img {
+			    vertical-align: top;
+			    width: 75px;
+			    height: 75px;
+			}
 		</style>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 	</head>
 	<body>
 		<div id="wrapper">
@@ -42,21 +61,24 @@
 
 			<div class="clear"></div>
 
-			<div id="result"><img id="result_image"></div>
-			<div id="text">
-				<p>
+			<div id="result_left"><img id="result_image"></div>
+			<div id="result_right">
+				<h3>Streetview settings</h3>
+				<p class="text">
 					Location: <span id="current_location"></span><br>
 					POV heading: <span id="current_heading"></span><br>
 					POV pitch: <span id="current_pitch"></span><br>
 					POV zoom: <span id="current_zoom"></span>
 				</p>
 				<p><button onclick="save_image();">Save image</button></p>
+				<h3>Classification result</h3>
+				<ol id="result_list"></ol>
 			</div>
 		</div>
 		
 		<script type="text/javascript">
 			var map, panorama;
-			var ajax = new XMLHttpRequest();
+			var ajaxRequest = null;
 			
 			// Set initial view			
 			var lat = 51.998938;
@@ -115,18 +137,39 @@
 					document.getElementById('current_pitch').innerHTML = pitch;
 					document.getElementById('current_zoom').innerHTML = zoom + ' (fov = '+ fov +')';
 					
-					// Update result image
-					var url = '/api/roadsign_detection?location='+ lat + ',' + lng + '&heading='+ heading + '&pitch='+ pitch + '&fov='+ fov;
-					
-					document.getElementById('result_image').src = url;
+					// Perform sign classification using AJAX call					
+					ajaxRequest = $.ajax({
+						url: '/api/roadsign_detection?location='+ lat + ',' + lng + '&heading='+ heading + '&pitch='+ pitch + '&fov='+ fov,
+						type: 'GET',
+						beforeSend: function() {
+							if (ajaxRequest != null && ajaxRequest.readyState != 4) {
+								ajaxRequest.abort();
+							}
+						},
+						success: function(data) {
+							if (data.image) {
+								$('#result_image').attr('src', 'data:image/jpeg;base64,' + data.image);
+							}
+							
+							$('#result_list').empty();
+							
+							if (data.classification.length > 0) {
+								for (var i = 0; i < data.classification.length; i++) {
+									result = data.classification[i];
+									$('#result_list').append('<li><img src="/dataset/'+ result['label'] +'.png"></li>')
+								}
+							}
+						}
+					});
 				}
 			}
 			
 			// Callback of save image button
 			function save_image() {
-				var url = '/api/save_streetview_image?location='+ lat + ',' + lng + '&heading='+ heading + '&pitch='+ pitch + '&fov='+ fov;
-				ajax.open('GET', url, true);
-				ajax.send();
+				$.ajax({
+					url: '/api/save_streetview_image?location='+ lat + ',' + lng + '&heading='+ heading + '&pitch='+ pitch + '&fov='+ fov,
+					type: 'GET',
+				});
 			}
 		</script>
 		

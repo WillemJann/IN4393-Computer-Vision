@@ -24,25 +24,32 @@ def classify_circles(image, circles):
         # Perform classification
         label = classifier.predict(sample.reshape(1,-1))
         
-        results.append((label[0], circle))
+        # Add to results
+        x1, y1, x2, y2 = calculate_bounding_box(circle)
+        result = {'label': label[0], 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2}
+        results.append(result)
     
     return results
 
 # Returns cropped circle from image, with white background as mask
 def crop_circle(image, circle):
     cropped_image = rgb2gray(image)
-
-    center_y, center_x, radius = circle
-    x1 = center_x - radius
-    x2 = center_x + radius
-    y1 = center_y - radius
-    y2 = center_y + radius
     
-    circy, circx = draw.circle(center_y, center_x, radius, shape=image.shape)
+    circy, circx = draw.circle(circle[0], circle[1], circle[2], shape=image.shape)
     mask = np.ones(cropped_image.shape, dtype=bool)
     mask[circy, circx] = False
     
     cropped_image[mask] = 0
+    
+    x1, y1, x2, y2 = calculate_bounding_box(circle)
     cropped_image = cropped_image[y1:y2, x1:x2]
     
     return cropped_image
+
+def calculate_bounding_box(circle):
+    center_y, center_x, radius = circle
+    x1 = center_x - radius
+    y1 = center_y - radius
+    x2 = center_x + radius
+    y2 = center_y + radius
+    return x1, y1, x2, y2
