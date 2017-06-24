@@ -70,5 +70,5 @@ def process_images():
     np.save('hog_features', features)
     np.save('truth_labels', labels)
 
-
-process_images()
+if __name__ == '__main__':
+    process_images()
