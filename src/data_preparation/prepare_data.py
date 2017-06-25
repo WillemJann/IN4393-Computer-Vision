@@ -37,11 +37,15 @@ def calculate_hog_feature_size():
     nr_of_features = blocks_per_image[0] * blocks_per_image[1] * block_size[0] * block_size[1] * HOG_HIST_NR_OF_BINS
     return int(nr_of_features)
 
-def extract_hog_features(image):
-    return hog(image, HOG_HIST_NR_OF_BINS, HOG_PIXELS_PER_CELL, HOG_CELLS_PER_BLOCK, HOG_BLOCK_NORM, transform_sqrt=True)
+def extract_hog_features(image, feature_source):
+    if feature_source == 'SKImage':
+        return hog(image, HOG_HIST_NR_OF_BINS, HOG_PIXELS_PER_CELL, HOG_CELLS_PER_BLOCK, HOG_BLOCK_NORM, transform_sqrt=True)
+    else:
+        # WIP: once our own hog implementation is provided, call that here.
+        pass
 
 
-def process_images():
+def process_images(feature_source='SKImage'):
     nr_of_images = count_images_in_path(data_root, extension)
     hog_features_size = calculate_hog_feature_size()
 
@@ -50,6 +54,9 @@ def process_images():
 
     print('%s Images Found: %d' % (extension.strip('*.'), nr_of_images))
 
+    # Extract features from all jpg files in the path
+    # It expects that all directories in path are the class names
+    # And each directory in the path only contains samples of that particular class.
     print('Processing dir: %s' % data_root)
     print('|')
     index = 0
@@ -61,14 +68,14 @@ def process_images():
             image = io.imread(path_to_file, as_grey=True)
             image = transform.resize(image, output_shape=target_size, order=1, mode='reflect')
 
-            features[index,:] = extract_hog_features(image)
+            features[index,:] = extract_hog_features(image, feature_source)
             labels.append(label)
             index+=1
 
     labels = np.array(labels)
 
-    np.save('hog_features', features)
-    np.save('truth_labels', labels)
+    np.save(feature_source+'_hog_features', features)
+    np.save(feature_source+'_truth_labels', labels)
 
 if __name__ == '__main__':
-    process_images()
+    process_images(feature_source='SKImage')

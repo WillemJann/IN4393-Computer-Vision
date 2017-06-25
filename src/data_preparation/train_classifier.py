@@ -1,19 +1,101 @@
 import itertools
 import matplotlib.pyplot as plt
 import numpy as np
-import os.path
+import os
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
 from sklearn import preprocessing
 from sklearn.svm import SVC, LinearSVC
 
 import prepare_data
 
-import inspect
-print os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+#
+def get_skimage_features():
+    # Only extract hog features from images if features and labels files are not present on disk.
+    if (not os.path.isfile('hog_features.npy')) or (not os.path.isfile('truth_labels.npy')):
+        prepare_data.process_images()
+    # Load the dataset
+    X = np.load('hog_features.npy')
+    y = np.load('truth_labels.npy')
+    class_names = np.unique(y)
+
+    return X, y
+
+def get_our_features():
+    # Only extract hog features from images if features and labels files are not present on disk.
+    if (not os.path.isfile('hog_features.npy')) or (not os.path.isfile('truth_labels.npy')):
+        prepare_data.process_images()
+    # Load the dataset
+    X = np.load('hog_features.npy')
+    y = np.load('truth_labels.npy')
+    class_names = np.unique(y)
+
+    return X, y
+
+def standardize_dataset(X):
+    # Standardize dataset. Both RBF kernel approach of SVC as linear SVM classifiers expect
+    # standardized data: http://scikit-learn.org/stable/modules/preprocessing.html
+    return preprocessing.scale(X)
+
+def create_linear_svc_classifier():
+    clf = LinearSVC(verbose=2, max_iter=100000)
+    return clf
+
+def create_random_forest_classifier(n_estimators=10):
+    clf = RandomForestClassifier(n_estimators=n_estimators, n_jobs=-1, verbose=2)
+    return clf
+
+# Evaluate classifier by performing stratified k-fold crossvalidation.
+def evaluate_classifier(clf, name, X, y, nr_folds=5):
+    class_names = np.unique(y)
+    # stratified k-fold crossvalidation
+    skf = StratifiedKFold(n_splits=nr_folds, shuffle=True, random_state=13)
+    print('%d-Fold Cross Validation:' % nr_folds)
+    iteration = 1
+    for train, test in skf.split(X,y):
+        print_data_information(X[train], y[train], iteration, which_set='Train')
+        print_data_information(X[test], y[test], iteration, which_set='Test')
+
+        y_pred = clf.fit(X[train,:], y[train]).predict(X[test])
+
+        # Save predictions to disk
+        np.save(name+'/'+name+'cross_val_predictions_fold-%d' % iteration, y_pred)
+
+        # Compute confusion matrix
+        cnf_matrix = confusion_matrix(y[test], y_pred)
+        # Save confusion matrix to disk
+        np.save(name+'/'+'cnf_mat_fold-%d' % iteration, cnf_matrix)
+
+        np.set_printoptions(precision=2)
+
+        # Plot non-normalized confusion matrix
+        plt.figure(num=None, figsize=(8,6), dpi=64)
+        plot_confusion_matrix(cnf_matrix, classes=class_names,
+                              title='Confusion matrix - Fold: %d' % iteration)
+        plt.savefig(name+'/'+name+'cnf_mat fold-%d.png' % iteration, bbox_inches='tight', dpi=64)
+        # Plot normalized confusion matrix
+        plt.figure(num=None, figsize=(8,6), dpi=64)
+        plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+                              title='Normalized confusion matrix - Fold: %d' % iteration)
+        plt.savefig(name+'/'+name + 'norm_cnf_mat fold-%d.png' % iteration, bbox_inches='tight', dpi=64)
+        iteration += 1
+    plt.show()
+
+# Print helper function that prints information about the train or test data of a given iteration
+# in K-fold cross validation
+def print_data_information(X, y, fold_iter, which_set='Train'):
+    print('Fold nr: %d' % fold_iter)
+    print('  - '+which_set+'ing samples: %d' % X.shape[0])
+    print('  - Samples per class:')
+    labels, counts = np.unique(y, return_counts=True)
+    for label, count in zip(labels, counts):
+        print('    * %s: %d' % (label, count))
 
 # Utility code to plot confusion matrix
+# Code found at: http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
+# Adjusted it a bit to get correct colorbar range when normalized confusion matrix is chosen.
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
@@ -54,58 +136,42 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
+def create_evaluate_train_classifier(classifier='LinearSVC', hog_features='SKImage'):
+    if classifier == 'LinearSVC':
+        name = 'Linear_SVC_Classifier_Features_'+hog_features
+        if not os.path.exists(name):
+            os.makedirs(name)
+        clf = create_linear_svc_classifier()
+    elif classifier == 'RandomForest':
+        name = 'Random_Forest_Classifier_Features_'+hog_features
+        if not os.path.exists(name):
+            os.makedirs(name)
+        clf = create_random_forest_classifier(n_estimators=100)
+    else:
+        name = 'Random_Forest_Classifier_Features_'+hog_features
+        if not os.path.exists(name):
+            os.makedirs(name)
+        clf = create_random_forest_classifier(n_estimators=100)
 
+    # load data
+    if hog_features == 'Ours':
+        pass
+    else:
+        X, y = get_skimage_features()
 
-# Only extract hog features from images if features and labels files are not present on disk.
-if (not os.path.isfile('hog_features.npy')) or (not os.path.isfile('truth_labels.npy')):
-    prepare_data.process_images()
-# Load the dataset
-X = np.load('hog_features.npy')
-y = np.load('truth_labels.npy')
-class_names = np.unique(y)
+    # Standardize dataset
+    X = standardize_dataset(X)
 
-# Standardize dataset. Both RBF kernel approach of SVC as linear SVM classifiers expect
-# standardized data: http://scikit-learn.org/stable/modules/preprocessing.html
-standardize = True
-if standardize:
-    X = preprocessing.scale(X)
+    # Evaluate classifier
+    # evaluate_classifier(clf, 'Linear SVC', X, y, nr_folds=5)
+    evaluate_classifier(clf, name, X, y, nr_folds=5)
 
-# Split dataset in test/train part
-# split train: 0.8 test: 0.2
-# stratify: y (makes sure the set is balanced)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=13, stratify=y)
-
-# Lazy initialization:
-#  if exists, load classifier from disk.
-#  else, train classifier
-classifier_filename = 'linear_svc_clf.pkl'
-if os.path.isfile(classifier_filename):
-    clf = joblib.load(classifier_filename)
-else:
-    print("Train data size: %d elements of size %d" % X_train.shape)
-    # Train Support Vector Machine classifier
-    #clf = SVC(cache_size=7000, verbose=True)
-    clf = LinearSVC(verbose=2, max_iter=100000)
-    clf.fit(X_train, y_train)
+    # Train classifier on full set
+    clf.fit(X, y)
 
     # Save classifier to disk
-    joblib.dump(clf, classifier_filename)
+    # joblib.dump(clf, 'Linear_SVC_Classifier')
+    joblib.dump(clf, name + '/' + name)
 
-# Evaluate classifier
-y_pred = clf.predict(X_test)
-
-# Compute confusion matrix
-cnf_matrix = confusion_matrix(y_test, y_pred)
-np.set_printoptions(precision=2)
-
-# Plot non-normalized confusion matrix
-plt.figure(num=None, figsize=(8,6), dpi=64)
-plot_confusion_matrix(cnf_matrix, classes=class_names,
-                      title='Confusion matrix, without normalization')
-
-# Plot normalized confusion matrix
-plt.figure(num=None, figsize=(8,6), dpi=64)
-plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
-                      title='Normalized confusion matrix')
-
-plt.show()
+if __name__ == '__main__':
+    create_evaluate_train_classifier(classifier='RandomForest', hog_features='SKImage')
