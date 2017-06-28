@@ -51,7 +51,7 @@ def find_circles(binary_patch):
     
     # Set parameters for hough_circle_peaks
     min_distance = int(max_image_size / 3)
-    threshold = 0.55
+    threshold = 0.6
     num_peaks = np.inf
     total_num_peaks = 5
     normalize = True

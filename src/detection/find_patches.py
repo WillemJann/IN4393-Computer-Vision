@@ -8,8 +8,7 @@ def binary_filtering(image):
     hsv = rgb2hsv(image)
 
     # Red filter constraints
-    h_red = np.logical_or(hsv[:, :, 0] >= float(240) / 360, hsv[:, :, 0] <= float(10) / 360)
-    #s_red = hsv[:, :, 1] >= float(40) / 360
+    h_red = np.logical_or(hsv[:, :, 0] >= float(320) / 360, hsv[:, :, 0] <= float(10) / 360)
     s_red = hsv[:, :, 1] >= float(120) / 360
     v_red = hsv[:, :, 2] >= float(30) / 360
     binary_red = np.logical_and(h_red, np.logical_and(s_red, v_red))
@@ -27,10 +26,8 @@ def binary_filtering(image):
     binary_red = binary_dilation(binary_red, square(5))
 
     # Blue filter constraints
-    h_blue = np.logical_and(hsv[:, :, 0] > float(210) / 360, \
-                            hsv[:, :, 0] <= float(230) / 360)
-    #s_blue = hsv[:, :, 1] >= float(127.5) / 360
-    s_blue = hsv[:, :, 1] >= float(200) / 360
+    h_blue = np.logical_and(hsv[:, :, 0] > float(210) / 360, hsv[:, :, 0] <= float(230) / 360)
+    s_blue = hsv[:, :, 1] >= float(290) / 360
     v_blue = hsv[:, :, 2] >= float(20) / 360
     binary_blue = np.logical_and(h_blue, np.logical_and(s_blue, v_blue))
     binary_blue = binary_opening(binary_blue)
@@ -50,12 +47,14 @@ def binary_filtering(image):
     # paper: https://thesai.org/Downloads/Volume7No1/Paper_93-Traffic_Sign_Detection_and_Recognition.pdf
     # paper: https://www.researchgate.net/publication/296196586_Ayoub_Ellahyani_Mohamed_El_AnsariIlyas_El_Jaafari_Traffic_sign_detection_and_recognition_based_on_random_forests_Applied_Soft_Computing
     # TODO: Discard ROIs based on size and aspect ratio constraints for traffic signs containing white areas
+    '''
     D = 17
     a_image = image.astype(int)
     achromatic = (np.absolute(a_image[:, :, 0] - a_image[:, :, 1]) + \
                   np.absolute(a_image[:, :, 1] - a_image[:, :, 2]) + \
                   np.absolute(a_image[:, :, 2] - a_image[:, :, 0])) / (3 * D)
     achromatic = achromatic < 1.0
+    '''
 
     binary = np.logical_or(binary_blue, binary_red)
     binary = binary_closing(binary)
