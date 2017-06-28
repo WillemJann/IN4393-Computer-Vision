@@ -3,17 +3,19 @@ import numpy as np
 from skimage import draw
 from skimage.color import rgb2gray
 from skimage.transform import resize
+from sklearn.externals import joblib
 
-from train_classifier import get_classifier, get_hog_features
+from train_classifier import get_hog_features
 
 TARGET_SIZE = (75,75)
+CLASSIFIER_FILE = '../../data/classifiers/linear_svc_dataset_training.pkl'
 
 # Returns list with classification result for each circle in given image
 def classify_circles(image, circles):
     results = []
     
     # Load classifier
-    classifier = get_classifier()
+    classifier = joblib.load(CLASSIFIER_FILE)
     
     for circle in circles:
         # Generate feature vector for current circle
