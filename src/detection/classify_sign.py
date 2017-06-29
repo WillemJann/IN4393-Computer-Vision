@@ -2,12 +2,17 @@ import numpy as np
 
 from skimage import draw
 from skimage.color import rgb2gray
+from skimage.feature import hog
 from skimage.transform import resize
 from sklearn.externals import joblib
 
-from train_classifier import get_hog_features
+HOG_HIST_NR_OF_BINS = 9
+HOG_PIXELS_PER_CELL = (8,8)
+HOG_CELLS_PER_BLOCK = (3,3)
+HOG_BLOCK_NORM = 'L2-Hys'
 
 TARGET_SIZE = (75,75)
+
 CLASSIFIER_FILE = '../../data/classifiers/linear_svc_dataset_training.pkl'
 
 # Returns list with classification result for each circle in given image
@@ -33,6 +38,10 @@ def classify_circles(image, circles):
         results.append(result)
     
     return results
+
+# Returns HOG features for a single image
+def get_hog_features(image):
+    return hog(image, HOG_HIST_NR_OF_BINS, HOG_PIXELS_PER_CELL, HOG_CELLS_PER_BLOCK, HOG_BLOCK_NORM, transform_sqrt=True)
 
 # Returns cropped circle from image, with white background as mask
 def crop_circle(image, circle):    
