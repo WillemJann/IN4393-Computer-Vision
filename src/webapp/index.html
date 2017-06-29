@@ -91,10 +91,10 @@
 			var map, panorama;
 			var ajaxRequest = null;
 			
-			// Set initial view			
-			var lat = 51.99893823294498;
-			var lng = 4.37247354122178;
-			var heading = 60;
+			// Set initial view
+			var lat = 52.00739262431413;
+			var lng = 4.371605182541657;
+			var heading = 37.64383592336222;
 			var pitch = 0;
 			var zoom = 1;
 			var fov = 90;
@@ -107,7 +107,7 @@
 			function initialize() {
 				map = new google.maps.Map(document.getElementById('map'), {
 					center: {lat: lat, lng: lng},
-					zoom: 14
+					zoom: 13
 				});
 				panorama = new google.maps.StreetViewPanorama(
 						document.getElementById('panorama'), {
