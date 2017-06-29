@@ -19,7 +19,8 @@ def classify_circles(image, circles):
     
     for circle in circles:
         # Generate feature vector for current circle
-        circle_image = crop_circle(image, circle)
+        circle_image = rgb2gray(image)
+        circle_image = crop_bounding_box(circle_image, circle)
         circle_image = resize(circle_image, TARGET_SIZE)
         sample = get_hog_features(circle_image)
         
@@ -34,19 +35,18 @@ def classify_circles(image, circles):
     return results
 
 # Returns cropped circle from image, with white background as mask
-def crop_circle(image, circle):
-    cropped_image = rgb2gray(image)
-    
+def crop_circle(image, circle):    
     circy, circx = draw.circle(circle[0], circle[1], circle[2], shape=image.shape)
-    mask = np.ones(cropped_image.shape, dtype=bool)
+    mask = np.ones(image.shape, dtype=bool)
     mask[circy, circx] = False
     
-    cropped_image[mask] = 0
+    image[mask] = 0
     
+    return crop_bounding_box(image, circle)
+
+def crop_bounding_box(image, circle):
     x1, y1, x2, y2 = calculate_bounding_box(circle)
-    cropped_image = cropped_image[y1:y2, x1:x2]
-    
-    return cropped_image
+    return image[y1:y2, x1:x2]
 
 def calculate_bounding_box(circle):
     center_y, center_x, radius = circle
