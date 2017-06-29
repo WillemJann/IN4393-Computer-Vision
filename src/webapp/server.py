@@ -100,4 +100,4 @@ def save_predefined_location():
 
 # Run application
 if __name__ == "__main__":
-    app.run(debug = True, static_files={'/dataset': '../../data/dataset_clean'})
+    app.run(debug = True, threaded = True, static_files={'/dataset': '../../data/dataset_clean'})
