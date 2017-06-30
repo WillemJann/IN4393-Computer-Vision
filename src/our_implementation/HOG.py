@@ -25,8 +25,8 @@ from scipy import ndimage
 
 from skimage.feature import hog
 
-HOG_CELL_SIZE = (3,3) # Should always fit in image size, we use image size = 75
-HOG_BLOCK_SIZE = (1,1)
+HOG_CELL_SIZE = (5,5) # Should always fit in image size, we use image size = 75
+HOG_BLOCK_SIZE = (3,3)
 NR_OF_HIST_BINS = 9
 
 def get_image():
@@ -45,6 +45,21 @@ def calculate_gradient(direction='x'):
         #filters.sobel_v()
     else:
         return None
+
+def create_histogram(angles, weights, nr_of_bins=9, hist_range=(0, 180)):
+    bin_size = hist_range[1] / nr_of_bins
+    bin_edges = range(hist_range[0], hist_range[1] + 1, bin_size)
+    histogram = np.zeros(nr_of_bins, dtype=np.double)
+    for k in range(len(bin_edges)):
+        in_range = np.where(np.logical_and(angles >= bin_edges[k], angles < bin_edges[k] + bin_size))[0]
+        for index in in_range:
+            angle = angles[index]
+            weight = weights[index]
+
+            diff = (angle - np.double(bin_edges[k]))
+            histogram[k] += weight * (1 - (diff / np.double(bin_size)))
+            histogram[(k + 1) % NR_OF_HIST_BINS] += weight * (diff / np.double(bin_size))
+    return histogram
 
 # Load image and normalize it
 image = io.imread('../../data/circles_normalized/A01-05.png')
@@ -85,7 +100,6 @@ ax[2].imshow(g, cmap=plt.cm.gray)
 ax[2].set_title('gradient')
 ax[2].axis('off')
 
-
 f, ax = plt.subplots(3, sharey=True)
 gy, gx = [np.ascontiguousarray(g, dtype=np.double) for g in np.gradient(image)]
 g = np.hypot(gx,gy)
@@ -119,6 +133,13 @@ ax[2].axis('off')
 
 plt.show()
 
+
+# USE SKIMAGE VALUES:
+# SKImage code
+gy, gx = [np.ascontiguousarray(g, dtype=np.double) for g in np.gradient(image)]
+g = np.hypot(gx,gy)
+theta = np.rad2deg(np.arctan2(gy, gx)) % 180 # angles in degrees
+
 # subdivide gradient image in areas of CELL_SIZE
 blocks_g = view_as_blocks(g, HOG_CELL_SIZE)
 blocks_theta = view_as_blocks(theta, HOG_CELL_SIZE)
@@ -130,12 +151,8 @@ flatten_blocks_theta = blocks_theta.reshape(blocks_theta.shape[0], blocks_theta.
 # Calculate histogram per block
 shape = (flatten_blocks_g.shape[0], flatten_blocks_g.shape[1], NR_OF_HIST_BINS)
 hist_range = (0,180)
-signed_hist = False
-if signed_hist:
-    hist_range = (0,360)
-else:
-    flatten_blocks_theta = (flatten_blocks_theta) # make sure all the angles are between 0 and 180
-histograms = np.zeros(shape, dtype=np.float32)
+histograms = np.zeros(shape, dtype=np.double)
+
 # Use SKImage hoghistogram
 from skimage.feature import _hoghistogram
 sy, sx = image.shape
@@ -145,47 +162,53 @@ bx, by = HOG_BLOCK_SIZE
 n_cellsx = int(sx // cx)  # number of cells in x
 n_cellsy = int(sy // cy)  # number of cells in y
 
-# compute orientations integral images
-histograms = np.zeros((n_cellsy, n_cellsx, NR_OF_HIST_BINS))
+test_histograms = np.zeros((n_cellsy, n_cellsx, NR_OF_HIST_BINS))
+_hoghistogram.hog_histograms(ngx,ngy, cx, cy, sx, sy, n_cellsx, n_cellsy,
+NR_OF_HIST_BINS, test_histograms)
 
-_hoghistogram.hog_histograms(gx, gy, cx, cy, sx, sy, n_cellsx, n_cellsy,
-NR_OF_HIST_BINS, histograms)
+for i in range(shape[0]):
+    for j in range(shape[1]):
+        angles = flatten_blocks_theta[i,j,:]
+        weights = flatten_blocks_g[i,j,:]
 
-#for i in range(shape[0]):
-#    for j in range(shape[1]):
-#        angles = flatten_blocks_theta[i,j,:]
-#        weights = flatten_blocks_g[i,j,:]
-#        # Not sure how to handle boundary conditions. for instance: angles right at an edge, should the weights be split
-#        # equally between the bins? I'm not sure how numpy handles this.
-#        histogram, bin_edges= np.histogram(angles, bins=shape[2], range=hist_range, weights=weights, density=False)
-#        histograms[i,j,:] = histogram
+        # Not sure how to handle boundary conditions. for instance: angles right at an edge, should the weights be split
+        # equally between the bins? I'm not sure how numpy handles this.
+        #histogram, bin_edges= np.histogram(angles, bins=shape[2], range=hist_range, weights=weights, density=False)
+        #histograms[i,j,:] = histogram
+        histograms[i,j,:] = create_histogram(angles,weights, NR_OF_HIST_BINS, hist_range)
+histograms = test_histograms
 
-# Normalize histograms per windows (L1 or L2 norm)
-windows = view_as_windows(histograms, window_shape=(1,1,9), step=(1,1,9))
-normalized_histograms = np.zeros((shape[0],shape[1],NR_OF_HIST_BINS), dtype=np.float32)
-norm = 'L2'
-order = 2
-if norm == 'L1':
-    order = 1
-if norm == 'L2':
-    order = 2
+
+# Normalize histograms per windows (L2 norm)
+window_shape = (HOG_BLOCK_SIZE[0], HOG_BLOCK_SIZE[1], NR_OF_HIST_BINS)
+windows = view_as_windows(histograms, window_shape=window_shape, step=(1,1,NR_OF_HIST_BINS))
+flatten_windows = windows.reshape(windows.shape[0], windows.shape[1], -1)
+shape = flatten_windows.shape
+normalized_histograms = np.zeros((shape[0],shape[1],shape[2]), dtype=np.double)
+
 for i in range(shape[0]):
     for j in range(shape[1]):
         eps = 1e-5
         block = windows[i,j,:].ravel()
         normalized_histograms[i,j,:] = block / np.sqrt(np.sum(block **2) + eps ** 2)
 
-        #SKImage code L2 norm
-        #eps = 1e-5
-        #block = windows[i,j,:].ravel()
-        #normalized_histograms[i, j, :] = histograms[i,j,:] / np.sqrt(np.sum(histograms[i,j,:] ** 2) + eps ** 2)
-
 # Concatenate all histograms to 1 large feature vector
 hog_features = normalized_histograms.ravel()
-hog_reference = hog(image, orientations=9, pixels_per_cell=(3, 3),
-                    cells_per_block=(1, 1), block_norm='L2')
-print 'Our HOG function:'
-print hog_features
-print 'SKImage HOG function:'
-print hog_reference
+hog_reference = hog(image, orientations=9, pixels_per_cell=HOG_CELL_SIZE,
+                    cells_per_block=HOG_BLOCK_SIZE, block_norm='L2')
+
+for i in range(3):
+    for j in range(3):
+        pass
+        #print 'Our HOG function:'
+        #print hog_features
+        #print histograms[i,j,:]
+        #print 'SKImage HOG function:'
+        #print hog_reference
+        #print test_histograms[i,j,:]
+print 'Our hog shape: ',hog_features.shape
+print 'Their hog shape: ',hog_reference.shape
 print 'Max Difference: ', np.max(np.abs(hog_features-hog_reference))
+#print hog_features
+#print hog_reference
+#print 'Max Difference: ', np.max(np.abs(histograms.ravel()-test_histograms.ravel()))
