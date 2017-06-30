@@ -2,16 +2,61 @@ import numpy as np
 
 from scipy import ndimage
 
-
 # HOG parameters
-HOG_CELL_SIZE = (8,8)
-HOG_BLOCK_SIZE = (3,3)
+HOG_CELL_SIZE = (8, 8)
+HOG_BLOCK_SIZE = (3, 3)
 NR_OF_HIST_BINS = 9
 
+# The Histogram of Oriented Gradient (HOG) algorithm consists of roughly 4 parts:
+# - Firstly, the gradients in the 'x' and 'y' direction should be calculated
+# - Secondly, the image is subdivided in cells, each consisting of the same amount of gradient values.
+#   A histogram of gradient angles is calculated, where the magnitude of the corresponding gradient serves
+#   as weight.
+# - Thirdly, the histograms are normalized. Instead of normalizing the histogram of each cell,
+#   the concatenated histograms of several cells together are normalized.
+#   This group of cells is called a block and blocks are defined in a sliding window approach, where blocks
+#   generally overlap each other.
+# - Fourthly, all the histograms are concatenated to form one large feature vector, called the hog_descriptor.
 def our_hog(image, cell_size = HOG_CELL_SIZE, block_size = HOG_BLOCK_SIZE, nr_of_hist_bins=NR_OF_HIST_BINS):
-    pass
+    # Firstly calculate the gradients of the image
+    gx, gy = calculate_gradient(image)
+
+    # Calculate the magnitude and angle from the gradient at each position.
+    magnitudes = np.sqrt(gx **2 + gy ** 2)
+    angles = np.rad2deg(np.arctan2(gy, gx)) % 180 # Angles in degrees, range [0,180]
+
+    # Subdivide magnitude and angle image in areas of cell_size
+    blocks_mags = create_hog_cells(magnitudes, cell_size)
+    blocks_angles = create_hog_cells(angles, cell_size)
+
+    # Calculate histogram per block
+    shape = (blocks_mags.shape[0], blocks_mags.shape[1], nr_of_hist_bins)
+    hist_range = (0, 180)
+    histograms = np.zeros(shape, dtype=np.double)
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            angles = blocks_angles[i, j, :, :].flatten()
+            weights = blocks_mags[i, j, :, :].flatten()
+
+            histograms[i, j, :] = create_histogram(angles, weights, nr_of_hist_bins, hist_range)
+
+    # Normalize histograms per block (L2 norm)
+    blocks = create_hog_blocks(histograms, block_size)
+    blocks = blocks.reshape(blocks.shape[0], blocks.shape[1], -1)
+    shape = blocks.shape
+    normalized_histograms = np.zeros((shape[0], shape[1], shape[2]), dtype=np.double)
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            eps = 1e-5
+            block = blocks[i, j, :]
+            normalized_histograms[i, j, :] = block / np.sqrt(np.sum(block ** 2) + eps ** 2)
+
+    # Concatenate all normalized histograms to 1 large feature vector
+    hog_features = normalized_histograms.flatten()
+    return hog_features
 
 
+# Calculates an approximation of the first order derivative in both x and y direction.
 def calculate_gradient(image):
     # create a simple filter that approximates a derivative.
     filter = np.array([[1, 0, -1]])
@@ -19,9 +64,7 @@ def calculate_gradient(image):
     # to get an approximation of the first order derivative in the x and y direction.
     gx = np.double(ndimage.convolve(image, np.transpose(filter)))
     gy = np.double(ndimage.convolve(image, filter))
-    # calculate the gradient based on the derivative in the x and y direction.
-    g = np.sqrt(gx **2 + gy ** 2)
-    return g
+    return gx, gy
 
 
 # Create a 1D histogram of angles.
