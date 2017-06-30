@@ -17,7 +17,7 @@ NR_OF_HIST_BINS = 9
 #   This group of cells is called a block and blocks are defined in a sliding window approach, where blocks
 #   generally overlap each other.
 # - Fourthly, all the histograms are concatenated to form one large feature vector, called the hog_descriptor.
-def our_hog(image, cell_size = HOG_CELL_SIZE, block_size = HOG_BLOCK_SIZE, nr_of_hist_bins=NR_OF_HIST_BINS):
+def hog(image, cell_size = HOG_CELL_SIZE, block_size = HOG_BLOCK_SIZE, nr_of_hist_bins=NR_OF_HIST_BINS):
     # Firstly calculate the gradients of the image
     gx, gy = calculate_gradient(image)
 
@@ -29,7 +29,7 @@ def our_hog(image, cell_size = HOG_CELL_SIZE, block_size = HOG_BLOCK_SIZE, nr_of
     blocks_mags = create_hog_cells(magnitudes, cell_size)
     blocks_angles = create_hog_cells(angles, cell_size)
 
-    # Calculate histogram per block
+    # Calculate histogram per cell
     shape = (blocks_mags.shape[0], blocks_mags.shape[1], nr_of_hist_bins)
     hist_range = (0, 180)
     histograms = np.zeros(shape, dtype=np.double)
@@ -62,8 +62,8 @@ def calculate_gradient(image):
     filter = np.array([[1, 0, -1]])
     # convolve the filter with the image and convolve the transpose of the filter with the image
     # to get an approximation of the first order derivative in the x and y direction.
-    gx = np.double(ndimage.convolve(image, np.transpose(filter)))
-    gy = np.double(ndimage.convolve(image, filter))
+    gx = np.double(ndimage.convolve(image, filter))
+    gy = np.double(ndimage.convolve(image, np.transpose(filter)))
     return gx, gy
 
 
