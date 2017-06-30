@@ -3,7 +3,8 @@ import numpy as np
 from scipy import ndimage
 
 
-HOG_CELL_SIZE = (8,8) # Should always fit in image size, we use image size = 75
+# HOG parameters
+HOG_CELL_SIZE = (8,8)
 HOG_BLOCK_SIZE = (3,3)
 NR_OF_HIST_BINS = 9
 
@@ -23,6 +24,9 @@ def calculate_gradient(image):
     return g
 
 
+# Create a 1D histogram of angles.
+# This histogram is weighted in terms of gradients, which are linearly interpolated
+# to define its contribution to each of the surrounding bins.
 def create_histogram(angles, weights, nr_of_bins=9, hist_range=(0, 180)):
     # Define the bin size and the lower bounds of each bin in the histogram
     bin_size = hist_range[1] / nr_of_bins
@@ -55,6 +59,7 @@ def create_histogram(angles, weights, nr_of_bins=9, hist_range=(0, 180)):
     return histogram
 
 
+# This function divides an image in NxM equally shaped cells.
 def create_hog_cells(matrix, cell_shape=(8,8)):
     # Calculate the number of cells that fit in the image.
     # If the image dimensions are not a multiple of the cell_shape, the maximum amount of
@@ -77,5 +82,25 @@ def create_hog_cells(matrix, cell_shape=(8,8)):
     return cells
 
 
+# This function creates MxN blocks of PxQ cells of size R
+# In contrast to the create_hog_cells function, this function
+# defines blocks in a sliding window fashion
 def create_hog_blocks(cells, block_shape=(3,3)):
-    pass
+    # Define the amount of overlap in cells between two blocks.
+    overlap = (np.uint8(np.floor(0.5 * block_shape[0])),
+               np.uint8(np.floor(0.5 * block_shape[1])))
+    # Define the amount of blocks to calculate.
+    nr_blocks = (cells.shape[0] - 2 * overlap[0], cells.shape[1] - 2 * overlap[1])
+    # Create an output matrix to store all the blocks in.
+    blocks = np.zeros((nr_blocks[0], nr_blocks[1], block_shape[0], block_shape[1], cells.shape[2]),
+                      dtype=np.double)
+    # For each block in the image, copy the corresponding cell(s) and their content
+    # and store it in the output matrix.
+    for row in range(nr_blocks[0]):
+        for col in range(nr_blocks[1]):
+            row_end = row + block_shape[0]
+            col_end = col + block_shape[1]
+            cells_in_block = cells[row:row_end, col:col_end]
+
+            blocks[row, col, :,:,:] = cells_in_block
+    return blocks
