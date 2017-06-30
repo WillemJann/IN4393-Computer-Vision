@@ -73,7 +73,7 @@ def calculate_gradient(image):
 def create_histogram(angles, weights, nr_of_bins=9, hist_range=(0, 180)):
     # Define the bin size and the lower bounds of each bin in the histogram
     bin_size = hist_range[1] / nr_of_bins
-    bin_edges = range(hist_range[0], hist_range[1] + 1, bin_size)
+    bin_edges = range(hist_range[0], hist_range[1], bin_size)
 
     # Create a 1D histogram of size: nr_of_bins
     histogram = np.zeros(nr_of_bins, dtype=np.double)
