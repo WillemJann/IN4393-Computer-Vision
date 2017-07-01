@@ -5,7 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io
 from skimage import transform
+
 from skimage.feature import hog
+from features import our_hog
 
 # Parameters
 data_root = '../../data/dataset_training/'
@@ -37,12 +39,11 @@ def calculate_hog_feature_size():
     nr_of_features = blocks_per_image[0] * blocks_per_image[1] * block_size[0] * block_size[1] * HOG_HIST_NR_OF_BINS
     return int(nr_of_features)
 
-def extract_hog_features(image, feature_source):
+def extract_hog_features(image, feature_source='SKImage'):
     if feature_source == 'SKImage':
         return hog(image, HOG_HIST_NR_OF_BINS, HOG_PIXELS_PER_CELL, HOG_CELLS_PER_BLOCK, HOG_BLOCK_NORM, transform_sqrt=True)
     else:
-        # WIP: once our own hog implementation is provided, call that here.
-        pass
+        return our_hog.hog(image, nr_of_hist_bins=HOG_HIST_NR_OF_BINS, cell_size=HOG_PIXELS_PER_CELL, block_size=HOG_CELLS_PER_BLOCK)
 
 
 def process_images(feature_source='SKImage'):
