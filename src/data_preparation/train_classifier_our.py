@@ -5,6 +5,7 @@ import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report
 from sklearn.model_selection import StratifiedKFold
 from sklearn import preprocessing
 from sklearn.svm import SVC, LinearSVC
@@ -14,11 +15,11 @@ import prepare_data
 #
 def get_skimage_features():
     # Only extract hog features from images if features and labels files are not present on disk.
-    if (not os.path.isfile('hog_features.npy')) or (not os.path.isfile('truth_labels.npy')):
+    if (not os.path.isfile('SKImage_hog_features.npy')) or (not os.path.isfile('SKImage_truth_labels.npy')):
         prepare_data.process_images()
     # Load the dataset
-    X = np.load('hog_features.npy')
-    y = np.load('truth_labels.npy')
+    X = np.load('SKImage_hog_features.npy')
+    y = np.load('SKImage_truth_labels.npy')
 
     return X, y
 
@@ -63,8 +64,34 @@ def evaluate_classifier(clf, name, X, y, nr_folds=5):
         # Save predictions to disk
         np.save(name+'/'+name+'cross_val_predictions_fold-%d' % iteration, y_pred)
 
+        # calculate statistics
         # Compute confusion matrix
         cnf_matrix = confusion_matrix(y[test], y_pred)
+        accuracy = accuracy_score(y[test], y_pred)
+        precision = precision_score(y[test], y_pred, average=None, labels=class_names)
+        recall = recall_score(y[test], y_pred, average=None, labels=class_names)
+        print 'accuracy: ', accuracy
+        print 'precision: ', precision
+        print 'recall: ', recall
+
+        # Save measurements
+        np.save(name+'/'+name+'cross_val_predictions_fold-%d-accuracy' % iteration, accuracy)
+        np.save(name + '/' + name + 'cross_val_predictions_fold-%d-precision' % iteration, precision)
+        np.save(name + '/' + name + 'cross_val_predictions_fold-%d-recall' % iteration, recall)
+        np.save(name + '/' + name + 'cross_val_predictions_fold-%d-report' % iteration,
+                classification_report(y[test], y_pred, target_names=class_names))
+        # Plot results
+        f, ax = plt.subplots(2, sharey=True)
+        y_pos = np.arange(len(class_names))
+        plt.setp(ax, xticks=y_pos, xticklabels=class_names)
+        plt.ylabel('Score')
+        ax = ax.ravel()
+        ax[0].bar(y_pos, precision, align='center', alpha=0.9)
+        ax[0].set_title('Precision')
+        ax[1].bar(y_pos, recall, align='center', alpha=0.9)
+        ax[1].set_title('Recall')
+        plt.savefig(name + '/' + name + 'measurements fold-%d.png' % iteration, dpi=64)
+
         # Save confusion matrix to disk
         np.save(name+'/'+'cnf_mat_fold-%d' % iteration, cnf_matrix)
 
