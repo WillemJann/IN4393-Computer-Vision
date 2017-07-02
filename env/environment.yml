@@ -1,4 +1,4 @@
-name: ComputerVision
+name: road_sign_detection
 channels:
 - anaconda-fusion
 - defaults
@@ -33,3 +33,6 @@ dependencies:
 - subprocess32=3.2.7=py27_0
 - werkzeug=0.12.2=py27_0
 - wheel=0.29.0=py27_0
+
+
+
