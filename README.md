@@ -40,5 +40,5 @@ Now run ```python server.py```. The following message should appear:
  * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit
 ```
 The webserver is runnning and the webapp can be used by visiting ```http://127.0.0.1:5000``` in your browser.  
-The browser result should look like the following image
+The result should look like this:
 ![Web Application](deliverables/final_application.png)
